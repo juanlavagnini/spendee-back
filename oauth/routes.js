@@ -97,7 +97,7 @@ router.post("/refresh", async (req, res) => {
     const { refresh_token } = req.body
 
     if (!refresh_token) {
-      return res.status("400").json({ error: "Missing refresh token" })
+      return res.status(400).json({ error: "Missing refresh token" })
     }
 
     const refreshHash = hashRefreshToken(refresh_token)

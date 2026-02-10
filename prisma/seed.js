@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client"
+const { PrismaClient } = require("@prisma/client")
+const { seedPiggy } = require("../piggy/seed.js")
 
 const prisma = new PrismaClient()
 
@@ -65,6 +66,13 @@ async function main() {
     } else {
       console.log("Already exists", cat.nombre)
     }
+  }
+
+  console.log("--- Starting Piggy Seed ---")
+  try {
+     await seedPiggy()
+  } catch (error) {
+     console.error("Error seeding piggy:", error)
   }
 }
 

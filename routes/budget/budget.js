@@ -54,34 +54,17 @@ router.get("/", validateToken, async (req, res) => {
       }),
     ])
 
-    const calcularGastos = async (presupuesto) => {
-      const gastosPorCategoria = await prisma.gasto.groupBy({
-        by: ["categoriaId"],
-        _sum: { gasto: true },
-        where: {
-          usuarioId,
-          fecha: {
-            gte: presupuesto.fechaInicio,
-            lte: presupuesto.fechaFin,
-          },
-        },
-      })
-
-      const gastosMap = gastosPorCategoria.reduce((acc, g) => {
-        acc[g.categoriaId] = g._sum.gasto ?? 0
-        return acc
-      }, {})
-
+    const formatearPresupuesto = (presupuesto) => {
       const categoriasConGasto = presupuesto.PresupuestoCategoria.map(
         (presCat) => {
-          const gastado = gastosMap[presCat.categoriaId] || 0
+          const gastado = presCat.gastadoAct
           const porcentaje = (gastado / presCat.monto) * 100
           return {
             ...presCat,
-            gastado,
+            gastado, // Conservo el nombre 'gastado' para el frontend
             porcentaje,
           }
-        },
+        }
       )
 
       return {
@@ -90,17 +73,13 @@ router.get("/", validateToken, async (req, res) => {
       }
     }
 
-    const pastBudgetsConDatos = await Promise.all(
-      pastBudgets.map(calcularGastos),
-    )
+    const pastBudgetsConDatos = pastBudgets.map(formatearPresupuesto)
 
     const currentBudgetConDatos = currentBudget
-      ? await calcularGastos(currentBudget)
+      ? formatearPresupuesto(currentBudget)
       : null
-
-    const futureBudgetsConDatos = await Promise.all(
-      futureBudgets.map(calcularGastos),
-    )
+    
+    const futureBudgetsConDatos = futureBudgets.map(formatearPresupuesto)
 
     const allBudgets = [
       ...pastBudgetsConDatos,
@@ -216,6 +195,75 @@ router.put("/:id", validateToken, async (req, res) => {
     res.status(400).json({ error: error.message })
   }
 })
+
+router.put(
+  "/:budgetId/category/:categoryId",
+  validateToken,
+  async (req, res) => {
+    const { budgetId, categoryId } = req.params
+    const { monto, alerta, limiteAlerta } = req.body
+    try {
+      const budget = await prisma.presupuesto.findFirst({
+        where: {
+          id: parseInt(budgetId),
+          usuarioId: req.user.user_id,
+        },
+      })
+
+      if (!budget) {
+        return res.status(404).json({ error: "Presupuesto no encontrado" })
+      }
+
+      const budgetCategory = await prisma.presupuestoCategoria.findFirst({
+        where: {
+          presupuestoId: parseInt(budgetId),
+          categoriaId: parseInt(categoryId),
+        },
+      })
+
+      if (!budgetCategory) {
+        return res
+          .status(404)
+          .json({ error: "La categoría no existe en este presupuesto" })
+      }
+
+      const updatedCategory = await prisma.presupuestoCategoria.update({
+        where: { id: budgetCategory.id },
+        data: {
+          monto: monto !== undefined ? parseInt(monto) : undefined,
+          alerta: alerta !== undefined ? alerta : undefined,
+          limiteAlerta:
+            alerta === false
+              ? 100
+              : limiteAlerta !== undefined
+              ? parseInt(limiteAlerta)
+              : undefined,
+        },
+      })
+      if (monto !== undefined) {
+        const aggregations = await prisma.presupuestoCategoria.aggregate({
+          _sum: {
+            monto: true,
+          },
+          where: {
+            presupuestoId: parseInt(budgetId),
+          },
+        })
+        await prisma.presupuesto.update({
+          where: { id: parseInt(budgetId) },
+          data: {
+            monto: aggregations._sum.monto || 0,
+          },
+        })
+      }
+
+      res.status(200).json(updatedCategory)
+    } catch (error) {
+      console.error("Error actualizando categoría del presupuesto:", error)
+      res.status(400).json({ error: error.message })
+    }
+  }
+)
 
 router.get("/:budgetId", validateToken, async (req, res) => {
   const { budgetId } = req.params

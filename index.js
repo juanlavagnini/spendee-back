@@ -156,7 +156,7 @@ app.get("/racha/:userId", validateToken, async (req, res) => {
   //   return res.status(400).json({ error: "userId inválido" })
   // }
   try {
-    const racha = await prisma.racha.findUnique({
+    let racha = await prisma.racha.findUnique({
       where: { usuarioId: userId },
     })
     console.log("Racha encontrada:", racha)

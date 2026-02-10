@@ -26,5 +26,8 @@
     "start": "node index.js",
     "dev": "node server.js",
     "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

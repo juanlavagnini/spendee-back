@@ -1,7 +1,7 @@
 const { PrismaClient } = require("@prisma/client")
 const prisma = new PrismaClient()
 
-async function main() {
+async function seedPiggy() {
   await prisma.objetivo?.deleteMany()
   const objetivos = [
     { descripcion: "Añadir 3 gastos", accion: "expense", maxProgreso: 3 },
@@ -50,7 +50,7 @@ async function main() {
     {
       descripcion: "Editar 1 categoría existente",
       accion: "category_edit",
-      maxProgreso: 3,
+      maxProgreso: 1,
     },
   ]
 
@@ -61,4 +61,15 @@ async function main() {
   console.log("Seed cargado.")
 }
 
-main()
+module.exports = { seedPiggy }
+
+if (require.main === module) {
+  seedPiggy()
+    .catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}

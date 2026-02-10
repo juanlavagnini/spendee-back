@@ -3,6 +3,7 @@ const router = express.Router()
 const { PrismaClient } = require("@prisma/client")
 //const truncateToDate = require("../helpers/truncateToDate.js")
 const validateToken = require("../../middleware/validateToken.js")
+const updateBudgetSpent = require("../../helpers/updateBudgetSpent.js")
 
 const prisma = new PrismaClient()
 router.post("/", validateToken, async (req, res) => {
@@ -17,6 +18,15 @@ router.post("/", validateToken, async (req, res) => {
         categoriaId: categoriaId,
       },
     })
+
+    // Actualizar presupuesto si existe
+    await updateBudgetSpent(
+      prisma,
+      req.user.user_id,
+      gasto, // amount
+      categoriaId,
+      nuevoGasto.fecha
+    )
     const racha = await prisma.racha.findUnique({
       where: { usuarioId: req.user.user_id },
     })
@@ -159,10 +169,23 @@ router.put("/byId/:id", validateToken, async (req, res) => {
   }
 
   try {
+    const gastoExistente = await prisma.gasto.findFirst({
+        where: { id, usuarioId: req.user.user_id }
+    })
+
+    if (!gastoExistente) return res.status(404).json({ error: "Gasto no encontrado" })
+
     await prisma.gasto.update({
       where: { id, usuarioId: req.user.user_id },
       data: { categoriaId: toCategoryIdInt },
     })
+    
+    // Ajustar presupuestos
+    // 1. Restar de la categoría anterior
+    await updateBudgetSpent(prisma, req.user.user_id, -gastoExistente.gasto, gastoExistente.categoriaId, gastoExistente.fecha)
+    // 2. Sumar a la nueva categoría
+    await updateBudgetSpent(prisma, req.user.user_id, gastoExistente.gasto, toCategoryIdInt, gastoExistente.fecha)
+
     res.status(200).json({ message: "Categoría del gasto actualizada" })
   } catch (error) {
     res.status(400).json({ message: "Error al extraer categorias o gasto" })
@@ -179,6 +202,16 @@ router.delete("/:id", validateToken, async (req, res) => {
     const deletedExpense = await prisma.gasto.delete({
       where: { id, usuarioId: req.user.user_id },
     })
+
+    // Restar monto del presupuesto
+    await updateBudgetSpent(
+        prisma, 
+        req.user.user_id, 
+        -deletedExpense.gasto, 
+        deletedExpense.categoriaId, 
+        deletedExpense.fecha
+    )
+
     res
       .status(200)
       .json({ message: "Gasto eliminado correctamente", deletedExpense })

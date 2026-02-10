@@ -1,7 +1,7 @@
 const { PrismaClient } = require("@prisma/client")
 const prisma = new PrismaClient()
 
-async function main() {
+async function seedLevels() {
   await prisma.objetivos?.deleteMany()
   await prisma.niveles?.deleteMany()
 
@@ -104,11 +104,15 @@ async function main() {
   console.log("Seed ejecutada correctamente ✔")
 }
 
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+module.exports = { seedLevels }
+
+if (require.main === module) {
+  seedLevels()
+    .catch((e) => {
+      console.error(e)
+      process.exit(1)
+    })
+    .finally(async () => {
+      await prisma.$disconnect()
+    })
+}
