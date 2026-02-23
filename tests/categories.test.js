@@ -13,6 +13,9 @@ jest.mock("@prisma/client", () => {
     gasto: {
       groupBy: jest.fn(),
     },
+    presupuesto: {
+      findFirst: jest.fn(),
+    },
   }
 
   return {
@@ -202,6 +205,39 @@ describe("Categories routes", () => {
         .send({ categoria: "Hack" })
 
       expect(res.status).toBe(403)
+    })
+  })
+
+  describe("GET /categories/alerts", () => {
+    it("deberia retornar un array vacio si no hay presupuesto activo", async () => {
+      prisma.presupuesto.findFirst.mockResolvedValue(null)
+
+      const res = await request(app).get("/categories/alerts")
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual([])
+    })
+
+    it("deberia retornar alertas si hay un presupuesto activo con alertas", async () => {
+      const mockBudget = {
+        PresupuestoCategoria: [
+          {
+            categoria: { id: 10, nombre: "Comida" },
+            limiteAlerta: 100,
+            gastadoAct: 120,
+            monto: 200,
+            alerta: true,
+          },
+        ],
+      }
+      prisma.presupuesto.findFirst.mockResolvedValue(mockBudget)
+
+      const res = await request(app).get("/categories/alerts")
+
+      expect(res.status).toBe(200)
+      expect(res.body).toHaveLength(1)
+      expect(res.body[0].categoria.nombre).toBe("Comida")
+      expect(res.body[0].limiteAlerta).toBe(100)
     })
   })
 })

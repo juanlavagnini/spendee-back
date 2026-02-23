@@ -201,7 +201,7 @@ router.put(
   validateToken,
   async (req, res) => {
     const { budgetId, categoryId } = req.params
-    const { monto, alerta, limiteAlerta } = req.body
+    const { monto, alerta, limiteAlerta, alertaVista } = req.body
     try {
       const budget = await prisma.presupuesto.findFirst({
         where: {
@@ -227,17 +227,39 @@ router.put(
           .json({ error: "La categoría no existe en este presupuesto" })
       }
 
+      const newMonto =
+        monto !== undefined ? parseInt(monto) : budgetCategory.monto
+
+      // Determinar el nuevo límite de alerta
+      const newLimiteAlerta =
+        alerta === false
+          ? 100
+          : limiteAlerta !== undefined
+          ? parseInt(limiteAlerta)
+          : budgetCategory.limiteAlerta
+
+      let shouldResetAlertSeen = false
+
+      // Si hay monto y es mayor a 0, calculamos si estamos debajo del límite
+      if (newMonto > 0) {
+        const porcentajeGastado = (budgetCategory.gastadoAct / newMonto) * 100
+        if (porcentajeGastado < newLimiteAlerta) {
+          shouldResetAlertSeen = true
+        }
+      }
+
       const updatedCategory = await prisma.presupuestoCategoria.update({
         where: { id: budgetCategory.id },
         data: {
           monto: monto !== undefined ? parseInt(monto) : undefined,
           alerta: alerta !== undefined ? alerta : undefined,
-          limiteAlerta:
-            alerta === false
-              ? 100
-              : limiteAlerta !== undefined
-              ? parseInt(limiteAlerta)
-              : undefined,
+          // Si calculamos que se debe resetear, seteo false. 
+          alertaVista: shouldResetAlertSeen
+            ? false
+            : alertaVista !== undefined
+            ? alertaVista
+            : undefined,
+          limiteAlerta: newLimiteAlerta,
         },
       })
       if (monto !== undefined) {

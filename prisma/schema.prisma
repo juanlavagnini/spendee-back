@@ -54,6 +54,7 @@ model PresupuestoCategoria {
   gastadoAct    Int         @default(0)
   alerta        Boolean     @default(false)
   limiteAlerta  Int         @default(100)
+  alertaVista   Boolean     @default(false)
   presupuesto   Presupuesto @relation(fields: [presupuestoId], references: [id])
   categoria     Categorias  @relation(fields: [categoriaId], references: [id])
 }

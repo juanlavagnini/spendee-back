@@ -1,7 +1,7 @@
 const express = require("express")
 const router = express.Router()
 const { PrismaClient } = require("@prisma/client")
-//const truncateToDate = require("../helpers/truncateToDate.js")
+const truncateToDate = require("../../helpers/truncateToDate.js")
 const validateToken = require("../../middleware/validateToken.js")
 
 const prisma = new PrismaClient()
@@ -26,11 +26,115 @@ router.post("/customCategory", validateToken, async (req, res) => {
   }
 })
 
+router.get("/alerts", validateToken, async (req, res) => {
+  try {
+    const { triggered } = req.query
+    const usuarioId = req.user?.sub || req.user?.user_id || req.user?.uid
+    const now = truncateToDate(new Date())
+
+    const currentBudget = await prisma.presupuesto.findFirst({
+      where: {
+        usuarioId,
+        fechaInicio: { lte: now },
+        fechaFin: { gte: now },
+      },
+      include: {
+        PresupuestoCategoria: {
+          where: {
+            alerta: true,
+          },
+          include: {
+            categoria: true,
+          },
+        },
+      },
+    })
+
+    if (!currentBudget) {
+      return res.json([])
+    }
+
+    let alertas = currentBudget.PresupuestoCategoria.map((pc) => ({
+      id: pc.presupuestoId,
+      categoryId: pc.categoriaId,
+      categoria: pc.categoria,
+      limiteAlerta: pc.limiteAlerta,
+      gastadoAct: pc.gastadoAct,
+      montoPresupuestado: pc.monto,
+      alertaVista: pc.alertaVista,
+    }))
+
+    if (triggered === "true") {
+      alertas = alertas.filter((a) => {
+        const porcentajeGastado = (a.gastadoAct / a.montoPresupuestado) * 100
+        return porcentajeGastado >= a.limiteAlerta
+      })
+    }
+
+    res.json(alertas)
+  } catch (error) {
+    console.error("Error obteniendo alertas:", error)
+    res.status(500).json({ error: "Error obteniendo alertas" })
+  }
+})
+
+router.put("/alerts/seen", validateToken, async (req, res) => {
+  try {
+    const usuarioId = req.user?.sub || req.user?.user_id || req.user?.uid
+    const now = truncateToDate(new Date())
+
+    // Buscar presupuesto actual
+    const currentBudget = await prisma.presupuesto.findFirst({
+      where: {
+        usuarioId,
+        fechaInicio: { lte: now },
+        fechaFin: { gte: now },
+      },
+      include: {
+        PresupuestoCategoria: {
+          where: {
+            alerta: true,
+          },
+        },
+      },
+    })
+
+    if (!currentBudget) {
+      return res.status(404).json({ message: "No hay presupuesto activo" })
+    }
+
+    // Filtrar categorías que han disparado la alerta
+    const triggeredCategories = currentBudget.PresupuestoCategoria.filter(
+      (pc) => {
+        if (!pc.monto || pc.monto === 0) return false
+        const porcentaje = (pc.gastadoAct / pc.monto) * 100
+        return porcentaje >= pc.limiteAlerta
+      }
+    )
+
+    if (triggeredCategories.length > 0) {
+      await prisma.presupuestoCategoria.updateMany({
+        where: {
+          id: { in: triggeredCategories.map((c) => c.id) },
+        },
+        data: {
+          alertaVista: true,
+        },
+      })
+    }
+
+    res.status(200).json({ message: "Alertas actualizadas a vistas" })
+  } catch (error) {
+    console.error("Error actualizando alertas:", error)
+    res.status(500).json({ error: "Error actualizando alertas" })
+  }
+})
+
 router.get("/", validateToken, async (req, res) => {
   const { month, year } = req.query
   try {
     const uid =
-      req.user?.sub || req.user?.user_id || req.user?.uid || req.query.userId
+      req.user?.sub || req.user?.user_id || req.user?.uid
 
     const categorias = await prisma.categorias.findMany({
       where: { OR: [{ usuarioId: "0" }, { usuarioId: uid }] },

@@ -14,6 +14,9 @@ jest.mock("@prisma/client", () => {
     presupuestoCategoria: {
       deleteMany: jest.fn(),
       createMany: jest.fn(),
+      findFirst: jest.fn(),
+      update: jest.fn(),
+      aggregate: jest.fn(),
     },
     gasto: {
       groupBy: jest.fn(),
@@ -188,6 +191,163 @@ describe("Budget routes", () => {
       const res = await request(app).get("/budget/999")
 
       expect(res.status).toBe(404)
+    })
+  })
+
+  describe("PUT /budget/:budgetId/category/:categoryId", () => {
+    it("deberia actualizar una categoria de presupuesto existente", async () => {
+      // Mock findFirst budget (existente)
+      prisma.presupuesto.findFirst.mockResolvedValue({
+        id: 1,
+        usuarioId: "user-123",
+      })
+
+      // Mock findFirst budgetCategory (existente)
+      prisma.presupuestoCategoria.findFirst.mockResolvedValue({
+        id: 10,
+        presupuestoId: 1,
+        categoriaId: 2,
+        monto: 500,
+      })
+
+      // Mock update
+      prisma.presupuestoCategoria.update.mockResolvedValue({
+        id: 10,
+        monto: 600,
+        alerta: true,
+        limiteAlerta: 80,
+      })
+
+      // Mock aggregate para actualizar el total del presupuesto
+      prisma.presupuestoCategoria.aggregate.mockResolvedValue({
+        _sum: {
+          monto: 2000,
+        },
+      })
+      
+      prisma.presupuesto.update.mockResolvedValue({})
+
+      const res = await request(app)
+        .put("/budget/1/category/2")
+        .send({
+          monto: 600,
+          alerta: true,
+          limiteAlerta: 80,
+        })
+
+      expect(res.status).toBe(200)
+      expect(prisma.presupuestoCategoria.update).toHaveBeenCalled()
+      expect(prisma.presupuesto.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 1 }, data: { monto: 2000 } })
+      )
+    })
+
+    it("deberia devolver 404 si el presupuesto no existe", async () => {
+      prisma.presupuesto.findFirst.mockResolvedValue(null)
+
+      const res = await request(app)
+        .put("/budget/999/category/2")
+        .send({ monto: 600 })
+
+      expect(res.status).toBe(404)
+      expect(res.body.error).toBe("Presupuesto no encontrado")
+    })
+
+    it("deberia devolver 404 si la categoria no existe en el presupuesto", async () => {
+      prisma.presupuesto.findFirst.mockResolvedValue({ id: 1 })
+      prisma.presupuestoCategoria.findFirst.mockResolvedValue(null)
+
+      const res = await request(app)
+        .put("/budget/1/category/999")
+        .send({ monto: 600 })
+
+      expect(res.status).toBe(404)
+      expect(res.body.error).toBe("La categoría no existe en este presupuesto")
+    })
+
+    it("deberia manejar errores internos", async () => {
+       prisma.presupuesto.findFirst.mockRejectedValue(new Error("DB Error"))
+       
+       const res = await request(app)
+        .put("/budget/1/category/2")
+        .send({ monto: 600 })
+
+       expect(res.status).toBe(400)
+    })
+
+    it("deberia actualizar alertaVista", async () => {
+      prisma.presupuesto.findFirst.mockResolvedValue({
+        id: 1,
+        usuarioId: "user-123",
+      })
+
+      prisma.presupuestoCategoria.findFirst.mockResolvedValue({
+        id: 10,
+        presupuestoId: 1,
+        categoriaId: 2,
+        monto: 500,
+      })
+
+      prisma.presupuestoCategoria.update.mockResolvedValue({
+        id: 10,
+        alertaVista: true,
+      })
+
+      const res = await request(app)
+        .put("/budget/1/category/2")
+        .send({
+          alertaVista: true,
+        })
+      
+      expect(res.status).toBe(200)
+      expect(prisma.presupuestoCategoria.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            alertaVista: true
+          })
+        })
+      )
+    })
+
+    it("deberia resetear alertaVista a false si el nuevo monto hace que el gasto este dentro del limite", async () => {
+      prisma.presupuesto.findFirst.mockResolvedValue({
+        id: 1,
+        usuarioId: "user-123",
+      })
+
+      // Situación actual: Gasto 90, Monto 100. % Gastado = 90%. Límite alerta = 80%.
+      // La alerta estaría disparada.
+      prisma.presupuestoCategoria.findFirst.mockResolvedValue({
+        id: 10,
+        presupuestoId: 1,
+        categoriaId: 2,
+        monto: 100,
+        gastadoAct: 90,
+        limiteAlerta: 80,
+        alertaVista: true, // Ya fue vista
+      })
+
+      prisma.presupuestoCategoria.update.mockResolvedValue({ id: 10 })
+      prisma.presupuestoCategoria.aggregate.mockResolvedValue({ _sum: { monto: 200 } })
+      prisma.presupuesto.update.mockResolvedValue({})
+
+      // Acción: Aumentamos el monto a 200.
+      // Nuevo % Gastado = (90 / 200) * 100 = 45%.
+      // 45% < 80% (Límite). La alerta ya no debería estar activa, así que reseteamos alertaVista.
+      const res = await request(app)
+        .put("/budget/1/category/2")
+        .send({
+          monto: 200,
+        })
+
+      expect(res.status).toBe(200)
+      expect(prisma.presupuestoCategoria.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            alertaVista: false, // Esperamos que se resetee
+          }),
+        })
+      )
     })
   })
 })
