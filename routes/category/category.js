@@ -145,7 +145,6 @@ router.get("/", validateToken, async (req, res) => {
       const dateFilter = {}
       const m = month ? parseInt(month, 10) : undefined
       const y = year ? parseInt(year, 10) : undefined
-
       if ((!isNaN(m) && m >= 1 && m <= 12) || !isNaN(y)) {
         // Si se da month sin year, asumimos el año actual
         const now = new Date()

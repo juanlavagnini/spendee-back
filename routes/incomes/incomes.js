@@ -139,7 +139,7 @@ router.get("/byId/:id", validateToken, async (req, res) => {
 
   try {
     const income = await prisma.ingreso.findUnique({
-      where: { id },
+      where: { id, usuarioId: req.user.user_id },
     })
     if (!income) return res.status(404).json({ error: "Ingreso no encontrado" })
     res.status(200).json(income)
