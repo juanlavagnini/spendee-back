@@ -33,7 +33,7 @@ jest.mock("../middleware/validateToken", () =>
 const { PrismaClient } = require("@prisma/client")
 const prisma = new PrismaClient()
 
-const app = require("../index.js")
+const { app } = require("../index.js")
 
 describe("App bootstrap & core routes", () => {
   beforeEach(() => {
@@ -106,19 +106,19 @@ describe("App bootstrap & core routes", () => {
     expect(res.body.hasSecret).toBe(false)
   })
 
-  it("GET /racha/:userId devuelve racha existente", async () => {
+  it("GET /racha devuelve racha existente", async () => {
     prisma.racha.findUnique.mockResolvedValue({
       usuarioId: "user-123",
       rachaActual: 5,
     })
 
-    const res = await request(app).get("/racha/user-123")
+    const res = await request(app).get("/racha")
 
     expect(res.status).toBe(200)
     expect(res.body.rachaActual).toBe(5)
   })
 
-  it("GET /racha/:userId crea racha si no existe", async () => {
+  it("GET /racha crea racha si no existe", async () => {
     prisma.racha.findUnique.mockResolvedValue(null)
     prisma.racha.create.mockResolvedValue({
       usuarioId: "user-123",
@@ -126,7 +126,7 @@ describe("App bootstrap & core routes", () => {
       isInactive: true,
     })
 
-    const res = await request(app).get("/racha/user-123")
+    const res = await request(app).get("/racha")
 
     expect(res.status).toBe(200)
     expect(prisma.racha.create).toHaveBeenCalled()

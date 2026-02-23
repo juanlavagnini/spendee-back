@@ -128,7 +128,7 @@ describe("Movimientos routes", () => {
     })
   })
 
-  describe("GET /movimientos/:userId", () => {
+  describe("GET /movimientos", () => {
     it("deberia calcular correctamente el balance", async () => {
       prisma.gasto.aggregate.mockResolvedValue({
         _sum: { gasto: 200 },
@@ -138,7 +138,7 @@ describe("Movimientos routes", () => {
         _sum: { ingreso: 500 },
       })
 
-      const res = await request(app).get("/movimientos/user-123")
+      const res = await request(app).get("/movimientos")
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual({
@@ -157,7 +157,7 @@ describe("Movimientos routes", () => {
         _sum: { ingreso: null },
       })
 
-      const res = await request(app).get("/movimientos/user-123")
+      const res = await request(app).get("/movimientos")
 
       expect(res.status).toBe(200)
       expect(res.body).toEqual({
@@ -170,7 +170,7 @@ describe("Movimientos routes", () => {
     it("deberia manejar errores de prisma", async () => {
       prisma.gasto.aggregate.mockRejectedValue(new Error("Aggregate failed"))
 
-      const res = await request(app).get("/movimientos/user-123")
+      const res = await request(app).get("/movimientos")
 
       expect(res.status).toBe(400)
       expect(res.body.error).toBe("Aggregate failed")

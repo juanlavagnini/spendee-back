@@ -189,8 +189,9 @@ if (require.main === module) {
   })
 }
 
-module.exports = serverless(app)
-//module.exports = app
+const handler = serverless(app);
+module.exports.app = app;
+module.exports.handler = handler;
 
 /* 
 app.get("/ingreso/:userId", validateToken, async (req, res) => {
