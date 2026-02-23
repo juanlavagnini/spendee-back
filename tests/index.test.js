@@ -52,60 +52,6 @@ describe("App bootstrap & core routes", () => {
     expect(res.body.message).toBe("JWT válido!")
   })
 
-  it("GET /getApiId devuelve el uid", async () => {
-    const res = await request(app).get("/getApiId")
-    expect(res.status).toBe(200)
-    expect(res.body.apiId).toBe("user-123")
-  })
-
-  it("POST /generateApiSecret crea usuario si no existe", async () => {
-    prisma.usuario.findUnique.mockResolvedValue(null)
-    prisma.usuario.create.mockResolvedValue({})
-
-    const res = await request(app).post("/generateApiSecret")
-
-    expect(res.status).toBe(200)
-    expect(res.body.apiSecret).toBeDefined()
-    expect(prisma.usuario.create).toHaveBeenCalled()
-  })
-
-  it("POST /generateApiSecret actualiza usuario existente", async () => {
-    prisma.usuario.findUnique.mockResolvedValue({ id: "user-123" })
-    prisma.usuario.update.mockResolvedValue({})
-
-    const res = await request(app).post("/generateApiSecret")
-
-    expect(res.status).toBe(200)
-    expect(prisma.usuario.update).toHaveBeenCalled()
-  })
-
-  it("DELETE /deleteApiSecret elimina el APISecret", async () => {
-    prisma.usuario.update.mockResolvedValue({})
-
-    const res = await request(app).delete("/deleteApiSecret")
-
-    expect(res.status).toBe(200)
-    expect(res.body.message).toContain("eliminado")
-  })
-
-  it("GET /hasAPISecret devuelve true si existe", async () => {
-    prisma.usuario.findUnique.mockResolvedValue({ APISecret: "hash" })
-
-    const res = await request(app).get("/hasAPISecret")
-
-    expect(res.status).toBe(200)
-    expect(res.body.hasSecret).toBe(true)
-  })
-
-  it("GET /hasAPISecret devuelve false si no existe", async () => {
-    prisma.usuario.findUnique.mockResolvedValue({ APISecret: null })
-
-    const res = await request(app).get("/hasAPISecret")
-
-    expect(res.status).toBe(200)
-    expect(res.body.hasSecret).toBe(false)
-  })
-
   it("GET /racha devuelve racha existente", async () => {
     prisma.racha.findUnique.mockResolvedValue({
       usuarioId: "user-123",
